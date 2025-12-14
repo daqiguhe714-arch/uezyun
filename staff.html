@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>順番管理（店員用）</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f2f2f2;
+      padding: 15px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    button {
+      padding: 6px 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .mail { background: #1976d2; color: #fff; }
+    .delete { background: #999; color: #fff; }
+  </style>
+</head>
+
+<body>
+<h1>順番管理（店員用）</h1>
+<div id="list"></div>
+
+<script>
+  const KEY = "waitlist";
+
+  emailjs.init({
+    publicKey: "jRUkbLl4MWL20uTZR"
+  });
+
+  function load() {
+    const list = JSON.parse(localStorage.getItem(KEY) || "[]");
+    const area = document.getElementById("list");
+    area.innerHTML = "";
+
+    if (list.length === 0) {
+      area.innerHTML = "<div class='box'>現在お待ちのお客様はいません</div>";
+      return;
+    }
+
+    list.forEach((item, index) => {
+      const div = document.createElement("div");
+      div.className = "box";
+      div.innerHTML = `
+        <div class="row">
+          <b>${item.name} 様</b>
+          <span>${item.count}名</span>
+        </div>
+        <div class="row">
+          小学生以下：${item.kids === "4" ? "4人以上" : item.kids}
+          ／ 子供いす：${item.chair}
+        </div>
+        <div class="row">
+          ${item.email ? "✉️ " + item.email : "📢 店頭呼び出し"}
+        </div>
+        <div class="row">
+          <button class="mail" onclick="sendMail(${index})">メール</button>
+          <button class="delete" onclick="removeItem(${index})">消去</button>
+        </div>
+      `;
+      area.appendChild(div);
+    });
+  }
+
+  function sendMail(index) {
+    const list = JSON.parse(localStorage.getItem(KEY) || "[]");
+    const c = list[index];
+
+    if (!c.email) {
+      alert("メール通知を希望していません");
+      return;
+    }
+
+    emailjs.send("service_a01ep2i", "template_mgk6u3t", {
+      to_email: c.email,
+      to_name: c.name,
+      message: "順番が近づいています。お店の近くでお待ちください。"
+    }).then(
+      () => alert("メールを送信しました"),
+      () => alert("メール送信に失敗しました")
+    );
+  }
+
+  function removeItem(index) {
+    if (!confirm("消去しますか？")) return;
+    const list = JSON.parse(localStorage.getItem(KEY) || "[]");
+    list.splice(index, 1);
+    localStorage.setItem(KEY, JSON.stringify(list));
+    load();
+  }
+
+  load();
+  setInterval(load, 3000);
+</script>
+</body>
+</html>

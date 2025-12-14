@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>順番待ち受付</title>
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f7f7f7;
+      padding: 10px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 16px;
+      max-width: 360px;   /* ★ スマホ最適幅 */
+      margin: auto;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 14px;
+      font-size: 1.2rem;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+      font-size: 0.85rem;
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 4px;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+
+    button {
+      background: #ff6b00;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      margin-top: 16px;
+      font-size: 1.05rem;
+      cursor: pointer;
+    }
+
+    .checkbox {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      font-size: 0.85rem;
+    }
+
+    .result {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+
+<body>
+<div class="card">
+  <h1>焼肉じゅん<br>順番待ち受付</h1>
+
+  <label>お名前（カタカナ）</label>
+  <input type="text" id="name" placeholder="ヤマダ タロウ">
+
+  <label>人数（合計）</label>
+  <input type="number" id="count" min="1" inputmode="numeric">
+
+  <div class="checkbox">
+    <input type="checkbox" id="useMail" onchange="toggleMail()">
+    <label for="useMail">メールで通知を受ける</label>
+  </div>
+
+  <div id="mailArea" style="display:none;">
+    <label>メールアドレス</label>
+    <input type="email" id="email" placeholder="example@mail.com">
+  </div>
+
+  <label>小学生以下の人数</label>
+  <select id="kids">
+    <option value="0">0人</option>
+    <option value="1">1人</option>
+    <option value="2">2人</option>
+    <option value="3">3人</option>
+    <option value="4">4人以上</option>
+  </select>
+
+  <label>子供いすの利用</label>
+  <select id="chair">
+    <option value="なし">不要</option>
+    <option value="あり">必要</option>
+  </select>
+
+  <button type="button" onclick="register()">受付する</button>
+
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+  const KEY = "waitlist";
+  const katakanaRegex = /^[ァ-ヶー\s]+$/;
+
+  function toggleMail() {
+    document.getElementById("mailArea").style.display =
+      document.getElementById("useMail").checked ? "block" : "none";
+  }
+
+  function register() {
+    const name = document.getElementById("name").value.trim();
+    const count = Number(document.getElementById("count").value);
+    const useMail = document.getElementById("useMail").checked;
+    const email = document.getElementById("email").value.trim();
+    const kids = document.getElementById("kids").value;
+    const chair = document.getElementById("chair").value;
+
+    if (!name || !count) {
+      alert("必須項目を入力してください");
+      return;
+    }
+
+    if (!katakanaRegex.test(name)) {
+      alert("お名前はカタカナで入力してください");
+      return;
+    }
+
+    if (useMail && !email) {
+      alert("メールアドレスを入力してください");
+      return;
+    }
+
+    const list = JSON.parse(localStorage.getItem(KEY) || "[]");
+    const number = list.length > 0
+      ? Math.max(...list.map(i => i.number)) + 1
+      : 1;
+
+    list.push({
+      number,
+      name,
+      count,
+      email: useMail ? email : "",
+      kids,
+      chair,
+      useMail,
+      time: new Date().toLocaleTimeString()
+    });
+
+    localStorage.setItem(KEY, JSON.stringify(list));
+
+    document.getElementById("result").innerHTML =
+      `<b>${name}様</b><br><br>
+       お名前でお呼びします。<br>
+       ${useMail ? "順番が近づくとメールでお知らせします。" : ""}`;
+  }
+</script>
+</body>
+</html>
