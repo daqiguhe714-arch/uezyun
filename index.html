@@ -6,57 +6,86 @@
 <title>順番待ち受付</title>
 
 <style>
+*{box-sizing:border-box;}
 body{
-  font-family: system-ui, sans-serif;
+  font-family:system-ui;
   background:#f7f7f7;
   padding:10px;
 }
 .card{
   background:#fff;
-  border-radius:14px;
+  border-radius:16px;
   padding:20px;
   max-width:420px;
   margin:auto;
 }
-label{display:block;margin-top:12px;}
-input,select,button{
+h2{text-align:center;}
+label{display:block;margin-top:14px;font-weight:600;}
+input,select,textarea,button{
   width:100%;
-  padding:12px;
+  padding:14px;
   margin-top:6px;
+  border-radius:10px;
+  border:1px solid #ccc;
+  font-size:16px;
+}
+textarea{resize:vertical;}
+.notify-btn{
+  margin-top:16px;
+  padding:16px;
+  border-radius:12px;
+  text-align:center;
+  font-weight:bold;
+  cursor:pointer;
+  border:2px solid #ff6b00;
+  color:#ff6b00;
+}
+.notify-btn.active{
+  background:#ff6b00;
+  color:#fff;
+}
+.notice{
+  margin-top:14px;
+  padding:12px;
+  background:#fff3e0;
+  border-radius:10px;
+  font-size:14px;
+  color:#c05600;
 }
 button{
   background:#ff6b00;
   color:#fff;
   border:none;
-  border-radius:10px;
   margin-top:20px;
+  font-size:18px;
+  font-weight:bold;
 }
-.checkbox{
-  display:flex;
-  gap:6px;
-  align-items:center;
-  margin-top:12px;
-}
-.result{
-  margin-top:16px;
-  text-align:center;
-}
+.result{text-align:center;margin-top:16px;}
 </style>
 </head>
 
 <body>
 <div class="card">
-<h2 style="text-align:center;">焼肉じゅん 順番待ち</h2>
+<h2>焼肉じゅん 順番待ちシステム</h2>
+
+<div id="waitTime" style="
+  background:#fff3e0;
+  padding:14px;
+  border-radius:12px;
+  text-align:center;
+  margin-bottom:16px;
+  font-weight:bold;">
+  待ち時間を確認中です…
+</div>
 
 <label>お名前（カタカナ）</label>
-<input id="name">
+<input id="name" placeholder="ヤマダ ジュン">
 
 <label>人数</label>
 <input type="number" id="count" min="1">
 
-<div class="checkbox">
-  <input type="checkbox" id="useMail" onchange="toggleMail()">
-  <label>メールで通知を受ける</label>
+<div id="notifyBtn" class="notify-btn" onclick="toggleMail()">
+📩 順番が近づいたらメールで通知
 </div>
 
 <div id="mailArea" style="display:none;">
@@ -73,52 +102,92 @@ button{
   <option value="4">4人以上</option>
 </select>
 
-<label>子供いす</label>
-<select id="chair">
-  <option value="なし">不要</option>
-  <option value="あり">必要</option>
-</select>
+<label>子供いすの個数</label>
+<input type="number" id="chair" min="0" value="0">
 
-<button onclick="register()">受付する</button>
+<label>その他（ご要望など）</label>
+<textarea id="note" rows="3"></textarea>
+
+<div class="notice">
+※ お呼び出し後15分ご不在の場合、自動キャンセルとなります。
+</div>
+
+<button type="button" onclick="register()">受付する</button>
 <div class="result" id="result"></div>
 </div>
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-<script>
-const firebaseConfig = {
-  databaseURL: "https://zyunule-default-rtdb.firebaseio.com"
+const app = initializeApp({
+  databaseURL:"https://zyunule-default-rtdb.asia-southeast1.firebasedatabase.app"
+});
+const db = getDatabase(app);
+
+/* ===== DOM ===== */
+const nameInput = document.getElementById("name");
+const countInput = document.getElementById("count");
+const emailInput = document.getElementById("email");
+const notifyBtn = document.getElementById("notifyBtn");
+const mailArea = document.getElementById("mailArea");
+const result = document.getElementById("result");
+
+/* ===== 待ち時間表示 ===== */
+const waitTimeArea = document.getElementById("waitTime");
+const format = min => {
+  const h=Math.floor(min/60), m=min%60;
+  if(h===0) return `${m}分`;
+  if(m===0) return `${h}時間`;
+  return `${h}時間${m}分`;
 };
 
-const app = firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+onValue(ref(db,"status/waitTime"), snap=>{
+  const d=snap.val();
+  if(!d){
+    waitTimeArea.textContent="現在の待ち時間は表示されていません";
+    return;
+  }
+  waitTimeArea.innerHTML=`ただいまの待ち時間は<br>約 ${format(d.min)} ～ ${format(d.max)} です`;
+});
 
-function toggleMail(){
-  mailArea.style.display = useMail.checked ? "block" : "none";
-}
+/* ===== メール通知 ===== */
+let useMail=false;
+window.toggleMail=()=>{
+  useMail=!useMail;
+  notifyBtn.classList.toggle("active",useMail);
+  mailArea.style.display=useMail?"block":"none";
+};
 
-function register(){
+/* ===== 受付 ===== */
+window.register=()=>{
   const name=nameInput.value.trim();
-  const count=countInput.value;
-  const useMail=useMail.checked;
+  const count=Number(countInput.value);
   const email=emailInput.value.trim();
 
   if(!name||!count) return alert("必須項目を入力してください");
-  if(useMail&&!email) return alert("メールを入力してください");
 
-  firebase.database().ref("waitlist").push({
+  if(count>=7){
+    result.innerHTML=`<div style="background:#fff3cd;padding:14px;border-radius:10px;">
+      人数の関係上、スタッフにお声がけください。
+    </div>`;
+    return;
+  }
+
+  if(useMail && !email) return alert("メールを入力してください");
+
+  push(ref(db,"waitlist"),{
     name,
     count,
     kids:kids.value,
     chair:chair.value,
+    note:note.value,
     email:useMail?email:"",
     time:Date.now()
   });
 
-  result.innerHTML = `<b>${name}様</b><br>受付しました`;
-}
+  result.innerHTML=`<b>${name}様</b><br>受付しました`;
+};
 </script>
 </body>
 </html>

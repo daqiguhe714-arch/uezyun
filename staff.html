@@ -5,53 +5,239 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>店員用 順番管理</title>
 
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
 <style>
+*{box-sizing:border-box;}
 body{font-family:system-ui;background:#f2f2f2;padding:10px;}
+h2{text-align:center;}
+
 .box{background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;}
-.row{display:flex;justify-content:space-between;align-items:center;margin-top:6px;}
-button{border:none;padding:6px 10px;border-radius:6px;}
+.row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+button{border:none;padding:8px 12px;border-radius:8px;cursor:pointer;}
+
+.call{background:#4caf50;color:#fff;}
+.absent{background:#ff9800;color:#fff;}
 .done{background:#999;color:#fff;}
+.mail{background:#2196f3;color:#fff;}
+
+.small{font-size:13px;color:#555;margin-top:4px;}
+input,select{padding:8px;border-radius:8px;border:1px solid #ccc;width:100%;}
+
+.section{background:#fff;border-radius:12px;padding:12px;margin:12px 0;}
+.badge{padding:3px 8px;border-radius:6px;font-size:12px;}
+.badge-absent{background:#ff9800;color:#fff;}
+.hidden{display:none;}
+
+.summary{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  font-weight:bold;
+  font-size:16px;
+}
+.summary div{
+  background:#e3f2fd;
+  padding:10px;
+  border-radius:10px;
+  width:100%;
+  text-align:center;
+}
 </style>
+
+<script>
+/* ===== パスワード ===== */
+const PASS="1793";
+if(sessionStorage.getItem("auth")!=="ok"){
+  const p=prompt("パスワードを入力してください");
+  if(p!==PASS){alert("パスワードが違います");location.reload();}
+  else sessionStorage.setItem("auth","ok");
+}
+
+/* ===== EmailJS ===== */
+emailjs.init({ publicKey:"jRUkbLl4MWL20uTZR" });
+</script>
 </head>
 
 <body>
-<h2 style="text-align:center;">順番管理（店員用）</h2>
-<div id="list"></div>
 
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"></script>
+<h2>順番管理（店員用）</h2>
 
-<script>
-const firebaseConfig = {
-  databaseURL: "https://zyunule-default-rtdb.firebaseio.com"
-};
+<!-- 👥 集計表示 -->
+<div class="section summary">
+  <div>待ち組数<br><span id="groupCount">0</span> 組</div>
+  <div>合計人数<br><span id="peopleCount">0</span> 人</div>
+</div>
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+<!-- ⏰ 待ち時間 -->
+<div class="section">
+  <h3>⏰ 現在の待ち時間（分）</h3>
+  <div style="display:flex;gap:6px;">
+    <input id="waitMin" type="number" placeholder="最短(分)">
+    <input id="waitMax" type="number" placeholder="最長(分)">
+    <button onclick="saveWaitTime()">更新</button>
+  </div>
+</div>
+
+<!-- ➕ 店員受付 -->
+<button onclick="toggleStaffForm()">➕ 店員受付</button>
+
+<div id="staffForm" class="section hidden">
+  <h3>📝 店員受付</h3>
+
+  <label>名前</label>
+  <input id="s_name">
+
+  <label>人数</label>
+  <input id="s_count" type="number" min="1">
+
+  <label>小学生以下</label>
+  <select id="s_kids">
+    <option value="0">0</option><option value="1">1</option>
+    <option value="2">2</option><option value="3">3</option>
+    <option value="4">4人以上</option>
+  </select>
+
+  <label>子供椅子</label>
+  <input id="s_chair" type="number" min="0" value="0">
+
+  <label>メール通知</label>
+  <select id="s_useMail" onchange="toggleStaffMail()">
+    <option value="no">なし</option>
+    <option value="yes">あり</option>
+  </select>
+
+  <div id="s_mailArea" class="hidden">
+    <label>メールアドレス</label>
+    <input id="s_email" type="email">
+  </div>
+
+  <label>備考</label>
+  <input id="s_note">
+
+  <button onclick="staffRegister()">受付する</button>
+</div>
+
+<div id="list">読み込み中...</div>
+
+<div class="section">
+<h3>📢 呼び出し履歴</h3>
+<ul id="callHistory"></ul>
+</div>
+
+<div class="section">
+<h3>🗑 消去履歴</h3>
+<ul id="deleteHistory"></ul>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, onValue, push, remove, update, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const app=initializeApp({
+  databaseURL:"https://zyunule-default-rtdb.asia-southeast1.firebasedatabase.app"
+});
+const db=getDatabase(app);
+
 const listArea=document.getElementById("list");
+const callHistory=document.getElementById("callHistory");
+const deleteHistory=document.getElementById("deleteHistory");
+const groupCount=document.getElementById("groupCount");
+const peopleCount=document.getElementById("peopleCount");
 
-firebase.database().ref("waitlist").on("value",snap=>{
+/* ===== 一覧＆集計 ===== */
+onValue(ref(db,"waitlist"), snap=>{
   listArea.innerHTML="";
-  const data=snap.val();
-  if(!data){listArea.innerHTML="待ちなし";return;}
+  let groups=0;
+  let people=0;
 
-  Object.entries(data).forEach(([key,item])=>{
+  const data=snap.val();
+  if(!data){
+    listArea.innerHTML="待ちなし";
+    groupCount.textContent=0;
+    peopleCount.textContent=0;
+    return;
+  }
+
+  Object.entries(data).forEach(([key,item],i)=>{
+    groups++;
+    people += Number(item.count || 0);
+
     const div=document.createElement("div");
     div.className="box";
     div.innerHTML=`
-      <b>${item.name} 様</b>（${item.count}名）
-      <div>子供：${item.kids} / 椅子：${item.chair}</div>
+      <b>${i+1}番目｜${item.name} 様（${item.count}名）</b>
+      ${item.status==="absent"?` <span class="badge badge-absent">不在</span>`:""}
+      <div class="small">子供：${item.kids} / 椅子：${item.chair||0}</div>
+      <div class="small">メール：${item.email||"なし"}</div>
+      <div class="small">備考：${item.note||"なし"}</div>
       <div class="row">
-        <button class="done" onclick="finish('${key}')">消去</button>
+        ${item.email?`<button class="mail" onclick="sendMail('${item.name}','${item.email}')">メール</button>`:""}
+        <button class="call" onclick="call('${key}','${item.name}')">呼び出し</button>
+        <button class="absent" onclick="absent('${key}','${item.name}')">不在</button>
+        <button class="done" onclick="del('${key}','${item.name}')">消去</button>
       </div>
     `;
     listArea.appendChild(div);
   });
+
+  groupCount.textContent=groups;
+  peopleCount.textContent=people;
 });
 
-function finish(key){
-  firebase.database().ref("waitlist/"+key).remove();
-}
+/* ===== 待ち時間保存（分） ===== */
+window.saveWaitTime=()=>{
+  const min=Number(waitMin.value);
+  const max=Number(waitMax.value);
+  if(!min||!max||min>max)return alert("正しく入力してください");
+  set(ref(db,"status/waitTime"),{min,max,updatedAt:Date.now()});
+  alert("更新しました");
+};
+
+/* ===== 店員受付 ===== */
+window.toggleStaffForm=()=>staffForm.classList.toggle("hidden");
+window.toggleStaffMail=()=>s_mailArea.classList.toggle("hidden",s_useMail.value!=="yes");
+
+window.staffRegister=()=>{
+  if(!s_name.value||!s_count.value)return alert("必須項目を入力してください");
+  push(ref(db,"waitlist"),{
+    name:s_name.value,
+    count:s_count.value,
+    kids:s_kids.value,
+    chair:s_chair.value,
+    email:s_useMail.value==="yes"?s_email.value:"",
+    note:s_note.value,
+    time:Date.now()
+  });
+  alert("受付しました");
+  staffForm.classList.add("hidden");
+};
+
+/* ===== 操作 ===== */
+window.call=(key,name)=>{
+  remove(ref(db,"waitlist/"+key));
+  callHistory.prepend(Object.assign(document.createElement("li"),{
+    textContent:`${new Date().toLocaleTimeString()}｜${name}様`
+  }));
+};
+
+window.absent=(key,name)=>{
+  update(ref(db,"waitlist/"+key),{status:"absent"});
+  setTimeout(()=>{
+    remove(ref(db,"waitlist/"+key));
+    deleteHistory.prepend(Object.assign(document.createElement("li"),{
+      textContent:`${new Date().toLocaleTimeString()}｜${name}様（不在）`
+    }));
+  },15*60*1000);
+};
+
+window.del=(key,name)=>{
+  if(!confirm("消去しますか？"))return;
+  remove(ref(db,"waitlist/"+key));
+  deleteHistory.prepend(Object.assign(document.createElement("li"),{
+    textContent:`${new Date().toLocaleTimeString()}｜${name}様`
+  }));
+};
 </script>
 </body>
 </html>
