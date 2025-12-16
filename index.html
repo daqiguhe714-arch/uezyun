@@ -6,114 +6,397 @@
 <title>順番待ち受付</title>
 
 <style>
-*{box-sizing:border-box;}
+*{box-sizing:border-box;margin:0;padding:0;}
 body{
-  font-family:system-ui;
-  background:#f7f7f7;
-  padding:10px;
-}
-.card{
+  font-family:'Hiragino Mincho ProN','Yu Mincho','serif','Hiragino Sans',system-ui,sans-serif;
   background:#fff;
-  border-radius:16px;
-  padding:20px;
-  max-width:420px;
-  margin:auto;
+  min-height:100vh;
+  padding:0;
+  color:#2c2c2c;
 }
-h2{text-align:center;}
-label{display:block;margin-top:14px;font-weight:600;}
-input,select,textarea,button{
-  width:100%;
-  padding:14px;
-  margin-top:6px;
-  border-radius:10px;
-  border:1px solid #ccc;
-  font-size:16px;
+.container{
+  max-width:500px;
+  margin:0 auto;
+  min-height:100vh;
+  background:#fff;
 }
-textarea{resize:vertical;}
-.notify-btn{
-  margin-top:16px;
-  padding:16px;
-  border-radius:12px;
+.header{
+  background:#fff;
+  padding:48px 24px 40px;
   text-align:center;
-  font-weight:bold;
-  cursor:pointer;
-  border:2px solid #ff6b00;
-  color:#ff6b00;
+  border-bottom:1px solid #e0e0e0;
 }
-.notify-btn.active{
-  background:#ff6b00;
-  color:#fff;
+.header h1{
+  font-size:32px;
+  color:#2c2c2c;
+  margin-bottom:12px;
+  font-weight:500;
+  letter-spacing:3px;
+  font-family:'Hiragino Mincho ProN','Yu Mincho',serif;
 }
-.notice{
-  margin-top:14px;
-  padding:12px;
-  background:#fff3e0;
-  border-radius:10px;
+.header .subtitle{
+  font-size:13px;
+  color:#666;
+  font-weight:400;
+  letter-spacing:2px;
+  font-family:'Hiragino Sans',system-ui,sans-serif;
+}
+
+.wait-time{
+  background:#fff;
+  color:#2c2c2c;
+  padding:32px 24px;
+  text-align:center;
+  border-bottom:1px solid #e0e0e0;
+}
+.wait-time .label{
+  font-size:12px;
+  color:#999;
+  margin-bottom:14px;
+  font-weight:500;
+  letter-spacing:1.5px;
+  text-transform:uppercase;
+  font-family:'Hiragino Sans',system-ui,sans-serif;
+}
+.wait-time .time{
+  font-size:36px;
+  font-weight:400;
+  color:#2c2c2c;
+  letter-spacing:2px;
+  font-family:'Hiragino Mincho ProN','Yu Mincho',serif;
+}
+
+.card{
+  padding:36px 28px 44px;
+}
+
+.form-group{
+  margin-bottom:32px;
+}
+.form-group label{
+  display:block;
+  font-weight:500;
+  color:#2c2c2c;
+  margin-bottom:12px;
   font-size:14px;
-  color:#c05600;
+  letter-spacing:0.5px;
 }
-button{
-  background:#ff6b00;
+.form-group .required{
+  color:#8b0000;
+  font-size:11px;
+  margin-left:6px;
+  background:#f5f5f5;
+  padding:3px 9px;
+  border-radius:3px;
+  font-weight:500;
+  border:1px solid #e0e0e0;
+}
+.form-group input,
+.form-group select,
+.form-group textarea{
+  width:100%;
+  padding:16px;
+  border:1px solid #d0d0d0;
+  border-radius:4px;
+  font-size:16px;
+  transition:all 0.3s;
+  font-family:inherit;
+  background:#fafafa;
+  color:#2c2c2c;
+}
+.form-group input::placeholder,
+.form-group textarea::placeholder{
+  color:#999;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus{
+  outline:none;
+  border-color:#2c2c2c;
+  background:#fff;
+  box-shadow:0 0 0 3px rgba(44,44,44,0.05);
+}
+.form-group textarea{
+  resize:vertical;
+  min-height:100px;
+  line-height:1.7;
+}
+
+.help-text{
+  font-size:12px;
+  color:#777;
+  margin-top:10px;
+  line-height:1.7;
+  padding-left:4px;
+}
+
+.notify-toggle{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:22px;
+  background:#fff;
+  border-radius:4px;
+  cursor:pointer;
+  transition:all 0.3s;
+  margin-bottom:32px;
+  border:1px solid #e0e0e0;
+  user-select:none;
+}
+.notify-toggle:active{
+  transform:scale(0.99);
+}
+.notify-toggle.active{
+  background:#fafafa;
+  border-color:#999;
+}
+.notify-toggle .left{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  pointer-events:none;
+}
+.notify-toggle .icon{
+  font-size:24px;
+  opacity:0.5;
+  transition:all 0.3s;
+}
+.notify-toggle.active .icon{
+  opacity:1;
+}
+.notify-toggle .text{
+  font-weight:500;
+  color:#2c2c2c;
+  font-size:14px;
+}
+.notify-toggle .switch{
+  width:54px;
+  height:30px;
+  background:#d0d0d0;
+  border-radius:15px;
+  position:relative;
+  transition:all 0.3s;
+  pointer-events:none;
+}
+.notify-toggle.active .switch{
+  background:#2c2c2c;
+}
+.notify-toggle .switch::after{
+  content:'';
+  position:absolute;
+  width:24px;
+  height:24px;
+  background:#fff;
+  border-radius:50%;
+  top:3px;
+  left:3px;
+  transition:all 0.3s;
+  box-shadow:0 2px 4px rgba(0,0,0,0.15);
+}
+.notify-toggle.active .switch::after{
+  left:27px;
+}
+
+.email-area{
+  max-height:0;
+  overflow:hidden;
+  transition:max-height 0.4s ease, opacity 0.3s ease;
+  opacity:0;
+}
+.email-area.show{
+  max-height:140px;
+  margin-bottom:32px;
+  opacity:1;
+}
+
+.notice-box{
+  background:#f9f9f9;
+  border-left:3px solid #666;
+  padding:20px 22px;
+  border-radius:4px;
+  margin:32px 0;
+}
+.notice-box .title{
+  font-weight:600;
+  color:#2c2c2c;
+  margin-bottom:10px;
+  font-size:14px;
+  letter-spacing:0.5px;
+}
+.notice-box .text{
+  font-size:13px;
+  color:#555;
+  line-height:1.9;
+}
+
+.submit-btn{
+  width:100%;
+  padding:20px;
+  background:#2c2c2c;
   color:#fff;
   border:none;
-  margin-top:20px;
-  font-size:18px;
-  font-weight:bold;
+  border-radius:4px;
+  font-size:16px;
+  font-weight:500;
+  cursor:pointer;
+  transition:all 0.3s;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  font-family:'Hiragino Sans',system-ui,sans-serif;
 }
-.result{text-align:center;margin-top:16px;}
+.submit-btn:active{
+  background:#1a1a1a;
+  transform:translateY(1px);
+}
+
+.result{
+  margin-top:32px;
+  padding:28px;
+  background:#fafafa;
+  border-radius:4px;
+  text-align:center;
+  font-size:15px;
+  display:none;
+  animation:slideIn 0.4s ease;
+  border:1px solid #d0d0d0;
+}
+.result.show{
+  display:block;
+}
+.result .name{
+  font-size:22px;
+  font-weight:500;
+  color:#2c2c2c;
+  margin-bottom:16px;
+  letter-spacing:1px;
+  font-family:'Hiragino Mincho ProN','Yu Mincho',serif;
+}
+.result .message{
+  color:#555;
+  line-height:1.9;
+}
+
+.warning-box{
+  background:#f9f9f9;
+  border-left:3px solid #666;
+  padding:24px;
+  border-radius:4px;
+  margin-top:28px;
+  border:1px solid #d0d0d0;
+}
+.warning-box .title{
+  font-weight:600;
+  color:#2c2c2c;
+  margin-bottom:12px;
+  font-size:15px;
+  letter-spacing:0.5px;
+}
+.warning-box .text{
+  color:#555;
+  line-height:1.9;
+  font-size:14px;
+}
+
+@keyframes slideIn{
+  from{opacity:0;transform:translateY(15px);}
+  to{opacity:1;transform:translateY(0);}
+}
+
+/* スクロールバーのカスタマイズ */
+::-webkit-scrollbar{
+  width:8px;
+}
+::-webkit-scrollbar-track{
+  background:#fff;
+}
+::-webkit-scrollbar-thumb{
+  background:#d0d0d0;
+  border-radius:4px;
+}
+::-webkit-scrollbar-thumb:hover{
+  background:#bbb;
+}
+
+@media(max-width:480px){
+  .header{padding:40px 20px 32px;}
+  .header h1{font-size:28px;letter-spacing:2px;}
+  .wait-time{padding:28px 20px;}
+  .wait-time .time{font-size:32px;}
+  .card{padding:28px 20px 36px;}
+}
 </style>
 </head>
 
 <body>
-<div class="card">
-<h2>焼肉じゅん 順番待ちシステム</h2>
+<div class="container">
+  <div class="header">
+    <h1>焼肉じゅん枚方市役所前店</h1>
+    <div class="subtitle">順番待ち受付システム</div>
+  </div>
 
-<div id="waitTime" style="
-  background:#fff3e0;
-  padding:14px;
-  border-radius:12px;
-  text-align:center;
-  margin-bottom:16px;
-  font-weight:bold;">
-  待ち時間を確認中です…
-</div>
+  <div class="wait-time" id="waitTime">
+    <div class="label">ただいまの待ち時間</div>
+    <div class="time">確認中…</div>
+  </div>
 
-<label>お名前（カタカナ）</label>
-<input id="name" placeholder="ヤマダ ジュン">
+  <div class="card">
+    <div class="form-group">
+      <label>お名前（カタカナ）<span class="required">必須</span></label>
+      <input type="text" id="name" placeholder="ヤマダ ジュン">
+    </div>
 
-<label>人数</label>
-<input type="number" id="count" min="1">
+    <div class="form-group">
+      <label>人数<span class="required">必須</span></label>
+      <input type="number" id="count" min="1" placeholder="2">
+      <div class="help-text">※ 7名様以上の場合はスタッフまでお声がけください</div>
+    </div>
 
-<div id="notifyBtn" class="notify-btn" onclick="toggleMail()">
-📩 順番が近づいたらメールで通知
-</div>
+    <div class="notify-toggle" id="notifyBtn">
+      <div class="left">
+        <div class="icon">📧</div>
+        <div class="text">順番が近づいたらメールで通知</div>
+      </div>
+      <div class="switch"></div>
+    </div>
 
-<div id="mailArea" style="display:none;">
-  <label>メールアドレス</label>
-  <input type="email" id="email">
-</div>
+    <div class="email-area" id="emailArea">
+      <div class="form-group">
+        <label>メールアドレス<span class="required">必須</span></label>
+        <input type="email" id="email" placeholder="example@email.com">
+      </div>
+    </div>
 
-<label>小学生以下の人数</label>
-<select id="kids">
-  <option value="0">0</option>
-  <option value="1">1</option>
-  <option value="2">2</option>
-  <option value="3">3</option>
-  <option value="4">4人以上</option>
-</select>
+    <div class="form-group">
+      <label>小学生以下の人数</label>
+      <select id="kids">
+        <option value="0">0人</option>
+        <option value="1">1人</option>
+        <option value="2">2人</option>
+        <option value="3">3人</option>
+        <option value="4">4人以上</option>
+      </select>
+    </div>
 
-<label>子供いすの個数</label>
-<input type="number" id="chair" min="0" value="0">
+    <div class="form-group">
+      <label>子供いすの個数</label>
+      <input type="number" id="chair" min="0" value="0" placeholder="0">
+      <div class="help-text">数に限りがございますので、ご用意できない場合がございます</div>
+    </div>
 
-<label>その他（ご要望など）</label>
-<textarea id="note" rows="3"></textarea>
+    <div class="form-group">
+      <label>その他ご要望</label>
+      <textarea id="note" placeholder="アレルギー、席のご希望など"></textarea>
+    </div>
 
-<div class="notice">
-※ お呼び出し後15分ご不在の場合、自動キャンセルとなります。
-</div>
+    <div class="notice-box">
+      <div class="title">⚠️ ご注意ください</div>
+      <div class="text">お呼び出し後15分間ご不在の場合、自動的にキャンセルとなります。予めご了承ください。</div>
+    </div>
 
-<button type="button" onclick="register()">受付する</button>
-<div class="result" id="result"></div>
+    <button class="submit-btn" id="submitBtn">受付する</button>
+
+    <div class="result" id="result"></div>
+  </div>
 </div>
 
 <script type="module">
@@ -125,69 +408,103 @@ const app = initializeApp({
 });
 const db = getDatabase(app);
 
-/* ===== DOM ===== */
-const nameInput = document.getElementById("name");
-const countInput = document.getElementById("count");
-const emailInput = document.getElementById("email");
-const notifyBtn = document.getElementById("notifyBtn");
-const mailArea = document.getElementById("mailArea");
-const result = document.getElementById("result");
+// DOM要素が読み込まれるまで待つ
+document.addEventListener('DOMContentLoaded', () => {
+  /* ===== DOM ===== */
+  const nameInput = document.getElementById("name");
+  const countInput = document.getElementById("count");
+  const emailInput = document.getElementById("email");
+  const notifyBtn = document.getElementById("notifyBtn");
+  const emailArea = document.getElementById("emailArea");
+  const result = document.getElementById("result");
+  const waitTime = document.getElementById("waitTime");
+  const kidsSelect = document.getElementById("kids");
+  const chairInput = document.getElementById("chair");
+  const noteInput = document.getElementById("note");
 
-/* ===== 待ち時間表示 ===== */
-const waitTimeArea = document.getElementById("waitTime");
-const format = min => {
-  const h=Math.floor(min/60), m=min%60;
-  if(h===0) return `${m}分`;
-  if(m===0) return `${h}時間`;
-  return `${h}時間${m}分`;
-};
+  /* ===== 待ち時間表示 ===== */
+  const format = min => {
+    const h=Math.floor(min/60), m=min%60;
+    if(h===0) return `${m}分`;
+    if(m===0) return `${h}時間`;
+    return `${h}時間${m}分`;
+  };
 
-onValue(ref(db,"status/waitTime"), snap=>{
-  const d=snap.val();
-  if(!d){
-    waitTimeArea.textContent="現在の待ち時間は表示されていません";
-    return;
-  }
-  waitTimeArea.innerHTML=`ただいまの待ち時間は<br>約 ${format(d.min)} ～ ${format(d.max)} です`;
-});
-
-/* ===== メール通知 ===== */
-let useMail=false;
-window.toggleMail=()=>{
-  useMail=!useMail;
-  notifyBtn.classList.toggle("active",useMail);
-  mailArea.style.display=useMail?"block":"none";
-};
-
-/* ===== 受付 ===== */
-window.register=()=>{
-  const name=nameInput.value.trim();
-  const count=Number(countInput.value);
-  const email=emailInput.value.trim();
-
-  if(!name||!count) return alert("必須項目を入力してください");
-
-  if(count>=7){
-    result.innerHTML=`<div style="background:#fff3cd;padding:14px;border-radius:10px;">
-      人数の関係上、スタッフにお声がけください。
-    </div>`;
-    return;
-  }
-
-  if(useMail && !email) return alert("メールを入力してください");
-
-  push(ref(db,"waitlist"),{
-    name,
-    count,
-    kids:kids.value,
-    chair:chair.value,
-    note:note.value,
-    email:useMail?email:"",
-    time:Date.now()
+  onValue(ref(db,"status/waitTime"), snap=>{
+    const d=snap.val();
+    if(!d){
+      waitTime.innerHTML=`<div class="label">ただいまの待ち時間</div><div class="time">お問い合わせください</div>`;
+      return;
+    }
+    waitTime.innerHTML=`<div class="label">ただいまの待ち時間</div><div class="time">${format(d.min)} ～ ${format(d.max)}</div>`;
   });
 
-  result.innerHTML=`<b>${name}様</b><br>受付しました`;
-};
+  /* ===== メール通知 ===== */
+  let useMail=false;
+  const toggleMail=()=>{
+    useMail=!useMail;
+    notifyBtn.classList.toggle("active");
+    emailArea.classList.toggle("show");
+  };
+
+  notifyBtn.addEventListener("click", toggleMail);
+
+  /* ===== 受付 ===== */
+  const register=()=>{
+    const name=nameInput.value.trim();
+    const count=Number(countInput.value);
+    const email=emailInput.value.trim();
+
+    if(!name||!count){
+      alert("お名前と人数は必須項目です");
+      return;
+    }
+
+    if(count>=7){
+      result.className="result show warning-box";
+      result.innerHTML=`
+        <div class="title">⚠️ 大人数のご予約について</div>
+        <div class="text">7名様以上のご予約は、お手数ですが直接スタッフまでお声がけください。ご協力をお願いいたします。</div>`;
+      return;
+    }
+
+    if(useMail && !email){
+      alert("メール通知を希望される場合は、メールアドレスを入力してください");
+      return;
+    }
+
+    push(ref(db,"waitlist"),{
+      name,
+      count,
+      kids:kidsSelect.value,
+      chair:chairInput.value,
+      note:noteInput.value,
+      email:useMail?email:"",
+      time:Date.now()
+    });
+
+    result.className="result show";
+    result.innerHTML=`
+      <div class="name">${name} 様</div>
+      <div class="message">受付が完了しました！<br>順番が近づきましたらお呼びいたします。<br><br><a href="https://daqiguhe714-arch.github.io/hizyunmenyu/" style="color:#2c2c2c;text-decoration:underline;">メニューはこちら</a></div>`;
+    
+    // フォームをリセット
+    nameInput.value='';
+    countInput.value='';
+    emailInput.value='';
+    kidsSelect.value='0';
+    chairInput.value='0';
+    noteInput.value='';
+    if(useMail) toggleMail();
+
+    // 5秒後に結果を非表示
+    setTimeout(()=>{
+      result.classList.remove("show");
+    },5000);
+  };
+
+  document.getElementById("submitBtn").addEventListener("click", register);
+});
 </script>
 </body>
 </html>

@@ -20,6 +20,7 @@ button{border:none;padding:8px 12px;border-radius:8px;cursor:pointer;}
 .absent{background:#ff9800;color:#fff;}
 .done{background:#999;color:#fff;}
 .mail{background:#2196f3;color:#fff;}
+.undo{background:#673ab7;color:#fff;}
 
 .small{font-size:13px;color:#555;margin-top:4px;}
 input,select{padding:8px;border-radius:8px;border:1px solid #ccc;width:100%;}
@@ -27,14 +28,13 @@ input,select{padding:8px;border-radius:8px;border:1px solid #ccc;width:100%;}
 .section{background:#fff;border-radius:12px;padding:12px;margin:12px 0;}
 .badge{padding:3px 8px;border-radius:6px;font-size:12px;}
 .badge-absent{background:#ff9800;color:#fff;}
+.badge-sent{background:#4caf50;color:#fff;}
 .hidden{display:none;}
 
 .summary{
   display:flex;
-  justify-content:space-between;
   gap:10px;
   font-weight:bold;
-  font-size:16px;
 }
 .summary div{
   background:#e3f2fd;
@@ -46,7 +46,6 @@ input,select{padding:8px;border-radius:8px;border:1px solid #ccc;width:100%;}
 </style>
 
 <script>
-/* ===== パスワード ===== */
 const PASS="1793";
 if(sessionStorage.getItem("auth")!=="ok"){
   const p=prompt("パスワードを入力してください");
@@ -54,7 +53,6 @@ if(sessionStorage.getItem("auth")!=="ok"){
   else sessionStorage.setItem("auth","ok");
 }
 
-/* ===== EmailJS ===== */
 emailjs.init({ publicKey:"jRUkbLl4MWL20uTZR" });
 </script>
 </head>
@@ -63,62 +61,41 @@ emailjs.init({ publicKey:"jRUkbLl4MWL20uTZR" });
 
 <h2>順番管理（店員用）</h2>
 
-<!-- 👥 集計表示 -->
 <div class="section summary">
   <div>待ち組数<br><span id="groupCount">0</span> 組</div>
   <div>合計人数<br><span id="peopleCount">0</span> 人</div>
 </div>
 
-<!-- ⏰ 待ち時間 -->
 <div class="section">
   <h3>⏰ 現在の待ち時間（分）</h3>
   <div style="display:flex;gap:6px;">
     <input id="waitMin" type="number" placeholder="最短(分)">
     <input id="waitMax" type="number" placeholder="最長(分)">
-    <button onclick="saveWaitTime()">更新</button>
+    <button onclick="saveWaitTime()" style="background:#4caf50;color:#fff;">更新</button>
   </div>
+  <div id="waitTimeStatus" style="margin-top:8px;font-size:13px;color:#666;"></div>
 </div>
 
-<!-- ➕ 店員受付 -->
 <button onclick="toggleStaffForm()">➕ 店員受付</button>
 
 <div id="staffForm" class="section hidden">
-  <h3>📝 店員受付</h3>
-
   <label>名前</label>
   <input id="s_name">
-
   <label>人数</label>
-  <input id="s_count" type="number" min="1">
-
-  <label>小学生以下</label>
-  <select id="s_kids">
-    <option value="0">0</option><option value="1">1</option>
-    <option value="2">2</option><option value="3">3</option>
-    <option value="4">4人以上</option>
-  </select>
-
-  <label>子供椅子</label>
-  <input id="s_chair" type="number" min="0" value="0">
-
-  <label>メール通知</label>
-  <select id="s_useMail" onchange="toggleStaffMail()">
-    <option value="no">なし</option>
-    <option value="yes">あり</option>
-  </select>
-
-  <div id="s_mailArea" class="hidden">
-    <label>メールアドレス</label>
-    <input id="s_email" type="email">
-  </div>
-
+  <input id="s_count" type="number">
+  <label>メールアドレス（任意）</label>
+  <input id="s_email" type="email">
   <label>備考</label>
   <input id="s_note">
-
   <button onclick="staffRegister()">受付する</button>
 </div>
 
-<div id="list">読み込み中...</div>
+<div id="list"></div>
+
+<div class="section">
+<h3>📧 メール送信履歴</h3>
+<ul id="mailHistory"></ul>
+</div>
 
 <div class="section">
 <h3>📢 呼び出し履歴</h3>
@@ -139,104 +116,193 @@ const app=initializeApp({
 });
 const db=getDatabase(app);
 
-const listArea=document.getElementById("list");
-const callHistory=document.getElementById("callHistory");
-const deleteHistory=document.getElementById("deleteHistory");
+const list=document.getElementById("list");
 const groupCount=document.getElementById("groupCount");
 const peopleCount=document.getElementById("peopleCount");
+const callHistory=document.getElementById("callHistory");
+const deleteHistory=document.getElementById("deleteHistory");
+const mailHistory=document.getElementById("mailHistory");
+const waitMinInput=document.getElementById("waitMin");
+const waitMaxInput=document.getElementById("waitMax");
+const waitTimeStatus=document.getElementById("waitTimeStatus");
 
-/* ===== 一覧＆集計 ===== */
-onValue(ref(db,"waitlist"), snap=>{
-  listArea.innerHTML="";
-  let groups=0;
-  let people=0;
+// 待ち時間の現在値を読み込み
+onValue(ref(db,"status/waitTime"),snap=>{
+  const d=snap.val();
+  if(d){
+    waitMinInput.value=d.min||'';
+    waitMaxInput.value=d.max||'';
+    waitTimeStatus.textContent=`現在の設定: ${d.min}分 ～ ${d.max}分`;
+  }
+});
 
-  const data=snap.val();
-  if(!data){
-    listArea.innerHTML="待ちなし";
+onValue(ref(db,"waitlist"),snap=>{
+  list.innerHTML="";
+  let g=0,p=0;
+  const d=snap.val();
+  if(!d){
     groupCount.textContent=0;
     peopleCount.textContent=0;
     return;
   }
 
-  Object.entries(data).forEach(([key,item],i)=>{
-    groups++;
-    people += Number(item.count || 0);
-
+  Object.entries(d).forEach(([key,v],i)=>{
+    g++; p+=Number(v.count||0);
     const div=document.createElement("div");
     div.className="box";
+    
+    // 子供情報を整形
+    let kidsInfo = '';
+    if(v.kids && v.kids !== '0'){
+      kidsInfo += `<div class="small">👶 小学生以下: ${v.kids}人</div>`;
+    }
+    if(v.chair && v.chair !== '0'){
+      kidsInfo += `<div class="small">🪑 子供いす: ${v.chair}個</div>`;
+    }
+    
     div.innerHTML=`
-      <b>${i+1}番目｜${item.name} 様（${item.count}名）</b>
-      ${item.status==="absent"?` <span class="badge badge-absent">不在</span>`:""}
-      <div class="small">子供：${item.kids} / 椅子：${item.chair||0}</div>
-      <div class="small">メール：${item.email||"なし"}</div>
-      <div class="small">備考：${item.note||"なし"}</div>
+      <b>${i+1}番目｜${v.name} 様（${v.count}名）</b>
+      ${v.absentAt?` <span class="badge badge-absent">不在 ${new Date(v.absentAt).toLocaleTimeString()}</span>`:""}
+      ${v.mailSent?` <span class="badge badge-sent">送信済み</span>`:""}
+      ${v.email?` <span class="badge" style="background:#2196f3;color:#fff;">📧</span>`:""}
+      ${kidsInfo}
+      <div class="small">備考：${v.note||"なし"}</div>
       <div class="row">
-        ${item.email?`<button class="mail" onclick="sendMail('${item.name}','${item.email}')">メール</button>`:""}
-        <button class="call" onclick="call('${key}','${item.name}')">呼び出し</button>
-        <button class="absent" onclick="absent('${key}','${item.name}')">不在</button>
-        <button class="done" onclick="del('${key}','${item.name}')">消去</button>
-      </div>
-    `;
-    listArea.appendChild(div);
+        ${v.email&&!v.mailSent?`<button class="mail" onclick="sendMail('${key}','${v.name}','${v.email}')">メール</button>`:""}
+        <button class="call" onclick="call('${key}','${v.name}')">呼び出し</button>
+        <button class="absent" onclick="absent('${key}','${v.name}')">不在</button>
+        <button class="done" onclick="del('${key}','${v.name}')">消去</button>
+      </div>`;
+    list.appendChild(div);
   });
 
-  groupCount.textContent=groups;
-  peopleCount.textContent=people;
+  groupCount.textContent=g;
+  peopleCount.textContent=p;
 });
 
-/* ===== 待ち時間保存（分） ===== */
-window.saveWaitTime=()=>{
-  const min=Number(waitMin.value);
-  const max=Number(waitMax.value);
-  if(!min||!max||min>max)return alert("正しく入力してください");
-  set(ref(db,"status/waitTime"),{min,max,updatedAt:Date.now()});
-  alert("更新しました");
+/* ===== メール ===== */
+window.sendMail=(key,name,email)=>{
+  const sender=prompt("送信者名を入力してください");
+  if(!sender) return;
+
+  emailjs.send("service_a01ep2i","template_mgk6u3t",{
+    to_name:name,
+    to_email:email,
+    sender
+  }).then(()=>{
+    update(ref(db,"waitlist/"+key),{mailSent:true});
+    mailHistory.prepend(Object.assign(document.createElement("li"),{
+      textContent:`${new Date().toLocaleTimeString()}｜${name}様｜${sender}`
+    }));
+    alert("メールを送信しました");
+  });
+};
+
+/* ===== 呼び出し ===== */
+window.call=(key,name)=>{
+  if(!confirm("呼び出しますか？"))return;
+  
+  // データを取得してから削除
+  const itemRef = ref(db, "waitlist/" + key);
+  onValue(itemRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      const li = document.createElement("li");
+      li.innerHTML = `${new Date().toLocaleTimeString()}｜${name}様 <button class="undo" onclick="undoCall('${key}',${JSON.stringify(data).replace(/"/g,'&quot;')})">戻す</button>`;
+      callHistory.prepend(li);
+      remove(itemRef);
+    }
+  }, { onlyOnce: true });
+};
+
+window.undoCall=(key,data)=>{
+  if(!confirm("呼び出しを取り消して待ち列に戻しますか？"))return;
+  set(ref(db,"waitlist/"+key),data);
+  alert("待ち列に戻しました");
+};
+
+/* ===== 不在 ===== */
+window.absent=(key,name)=>{
+  if(!confirm("不在にしますか？"))return;
+  const t=Date.now();
+  update(ref(db,"waitlist/"+key),{absentAt:t});
+  setTimeout(()=>{
+    deleteHistory.prepend(Object.assign(document.createElement("li"),{
+      textContent:`${new Date().toLocaleTimeString()}｜${name}様（不在）`
+    }));
+    remove(ref(db,"waitlist/"+key));
+  },15*60*1000);
+};
+
+/* ===== 消去 ===== */
+window.del=(key,name)=>{
+  if(!confirm("消去しますか？"))return;
+  
+  // データを取得してから削除
+  const itemRef = ref(db, "waitlist/" + key);
+  onValue(itemRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      const li = document.createElement("li");
+      li.innerHTML = `${new Date().toLocaleTimeString()}｜${name}様 <button class="undo" onclick="undoDelete('${key}',${JSON.stringify(data).replace(/"/g,'&quot;')})">戻す</button>`;
+      deleteHistory.prepend(li);
+      remove(itemRef);
+    }
+  }, { onlyOnce: true });
+};
+
+window.undoDelete=(key,data)=>{
+  if(!confirm("消去を取り消して待ち列に戻しますか？"))return;
+  set(ref(db,"waitlist/"+key),data);
+  alert("待ち列に戻しました");
 };
 
 /* ===== 店員受付 ===== */
 window.toggleStaffForm=()=>staffForm.classList.toggle("hidden");
-window.toggleStaffMail=()=>s_mailArea.classList.toggle("hidden",s_useMail.value!=="yes");
 
 window.staffRegister=()=>{
-  if(!s_name.value||!s_count.value)return alert("必須項目を入力してください");
-  push(ref(db,"waitlist"),{
+  if(!s_name.value||!s_count.value){
+    alert("必須項目を入力してください");
+    return;
+  }
+  const data = {
     name:s_name.value,
     count:s_count.value,
-    kids:s_kids.value,
-    chair:s_chair.value,
-    email:s_useMail.value==="yes"?s_email.value:"",
     note:s_note.value,
     time:Date.now()
-  });
-  alert("受付しました");
+  };
+  if(s_email.value) data.email = s_email.value;
+  
+  push(ref(db,"waitlist"), data);
+  s_name.value = '';
+  s_count.value = '';
+  s_email.value = '';
+  s_note.value = '';
   staffForm.classList.add("hidden");
+  alert("受付完了しました");
 };
 
-/* ===== 操作 ===== */
-window.call=(key,name)=>{
-  remove(ref(db,"waitlist/"+key));
-  callHistory.prepend(Object.assign(document.createElement("li"),{
-    textContent:`${new Date().toLocaleTimeString()}｜${name}様`
-  }));
-};
-
-window.absent=(key,name)=>{
-  update(ref(db,"waitlist/"+key),{status:"absent"});
-  setTimeout(()=>{
-    remove(ref(db,"waitlist/"+key));
-    deleteHistory.prepend(Object.assign(document.createElement("li"),{
-      textContent:`${new Date().toLocaleTimeString()}｜${name}様（不在）`
-    }));
-  },15*60*1000);
-};
-
-window.del=(key,name)=>{
-  if(!confirm("消去しますか？"))return;
-  remove(ref(db,"waitlist/"+key));
-  deleteHistory.prepend(Object.assign(document.createElement("li"),{
-    textContent:`${new Date().toLocaleTimeString()}｜${name}様`
-  }));
+/* ===== 待ち時間更新 ===== */
+window.saveWaitTime=()=>{
+  const min=Number(waitMinInput.value);
+  const max=Number(waitMaxInput.value);
+  
+  if(!min||!max){
+    alert("待ち時間を入力してください");
+    return;
+  }
+  
+  if(min>max){
+    alert("最短時間は最長時間より小さくしてください");
+    return;
+  }
+  
+  set(ref(db,"status/waitTime"),{min,max}).then(()=>{
+    waitTimeStatus.textContent=`現在の設定: ${min}分 ～ ${max}分`;
+    alert("待ち時間を更新しました");
+  }).catch(err=>{
+    alert("更新に失敗しました: "+err.message);
+  });
 };
 </script>
 </body>
