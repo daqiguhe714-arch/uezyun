@@ -43,6 +43,14 @@ input,select{padding:8px;border-radius:8px;border:1px solid #ccc;width:100%;}
   width:100%;
   text-align:center;
 }
+
+.history-item{
+  margin-bottom:8px;
+  padding:8px;
+  background:#f9f9f9;
+  border-radius:6px;
+  font-size:14px;
+}
 </style>
 
 <script>
@@ -94,17 +102,17 @@ emailjs.init({ publicKey:"jRUkbLl4MWL20uTZR" });
 
 <div class="section">
 <h3>📧 メール送信履歴</h3>
-<ul id="mailHistory"></ul>
+<div id="mailHistory"></div>
 </div>
 
 <div class="section">
 <h3>📢 呼び出し履歴</h3>
-<ul id="callHistory"></ul>
+<div id="callHistory"></div>
 </div>
 
 <div class="section">
 <h3>🗑 消去履歴</h3>
-<ul id="deleteHistory"></ul>
+<div id="deleteHistory"></div>
 </div>
 
 <script type="module">
@@ -136,6 +144,46 @@ onValue(ref(db,"status/waitTime"),snap=>{
   }
 });
 
+// 履歴の読み込み
+onValue(ref(db,"history/mail"),snap=>{
+  mailHistory.innerHTML="";
+  const d=snap.val();
+  if(!d)return;
+  
+  Object.entries(d).sort((a,b)=>b[1].time-a[1].time).slice(0,20).forEach(([key,v])=>{
+    const div=document.createElement("div");
+    div.className="history-item";
+    div.textContent=`${new Date(v.time).toLocaleTimeString()}｜${v.name}様｜${v.sender}`;
+    mailHistory.appendChild(div);
+  });
+});
+
+onValue(ref(db,"history/call"),snap=>{
+  callHistory.innerHTML="";
+  const d=snap.val();
+  if(!d)return;
+  
+  Object.entries(d).sort((a,b)=>b[1].time-a[1].time).slice(0,20).forEach(([key,v])=>{
+    const div=document.createElement("div");
+    div.className="history-item";
+    div.innerHTML=`${new Date(v.time).toLocaleTimeString()}｜${v.name}様 <button class="undo" onclick="undoCall('${key}',${JSON.stringify(v.data).replace(/"/g,'&quot;')})">戻す</button>`;
+    callHistory.appendChild(div);
+  });
+});
+
+onValue(ref(db,"history/delete"),snap=>{
+  deleteHistory.innerHTML="";
+  const d=snap.val();
+  if(!d)return;
+  
+  Object.entries(d).sort((a,b)=>b[1].time-a[1].time).slice(0,20).forEach(([key,v])=>{
+    const div=document.createElement("div");
+    div.className="history-item";
+    div.innerHTML=`${new Date(v.time).toLocaleTimeString()}｜${v.name}様 <button class="undo" onclick="undoDelete('${key}',${JSON.stringify(v.data).replace(/"/g,'&quot;')})">戻す</button>`;
+    deleteHistory.appendChild(div);
+  });
+});
+
 onValue(ref(db,"waitlist"),snap=>{
   list.innerHTML="";
   let g=0,p=0;
@@ -151,7 +199,6 @@ onValue(ref(db,"waitlist"),snap=>{
     const div=document.createElement("div");
     div.className="box";
     
-    // 子供情報を整形
     let kidsInfo = '';
     if(v.kids && v.kids !== '0'){
       kidsInfo += `<div class="small">👶 小学生以下: ${v.kids}人</div>`;
@@ -191,9 +238,14 @@ window.sendMail=(key,name,email)=>{
     sender
   }).then(()=>{
     update(ref(db,"waitlist/"+key),{mailSent:true});
-    mailHistory.prepend(Object.assign(document.createElement("li"),{
-      textContent:`${new Date().toLocaleTimeString()}｜${name}様｜${sender}`
-    }));
+    
+    // 履歴に保存
+    push(ref(db,"history/mail"),{
+      name,
+      sender,
+      time:Date.now()
+    });
+    
     alert("メールを送信しました");
   });
 };
@@ -202,22 +254,31 @@ window.sendMail=(key,name,email)=>{
 window.call=(key,name)=>{
   if(!confirm("呼び出しますか？"))return;
   
-  // データを取得してから削除
   const itemRef = ref(db, "waitlist/" + key);
   onValue(itemRef, (snapshot) => {
     const data = snapshot.val();
     if (data) {
-      const li = document.createElement("li");
-      li.innerHTML = `${new Date().toLocaleTimeString()}｜${name}様 <button class="undo" onclick="undoCall('${key}',${JSON.stringify(data).replace(/"/g,'&quot;')})">戻す</button>`;
-      callHistory.prepend(li);
+      // 履歴に保存
+      push(ref(db,"history/call"),{
+        name,
+        data,
+        time:Date.now()
+      });
+      
       remove(itemRef);
     }
   }, { onlyOnce: true });
 };
 
-window.undoCall=(key,data)=>{
+window.undoCall=(historyKey,data)=>{
   if(!confirm("呼び出しを取り消して待ち列に戻しますか？"))return;
-  set(ref(db,"waitlist/"+key),data);
+  
+  // 新しいキーで待ち列に追加
+  push(ref(db,"waitlist"),data);
+  
+  // 履歴から削除
+  remove(ref(db,"history/call/"+historyKey));
+  
   alert("待ち列に戻しました");
 };
 
@@ -226,11 +287,23 @@ window.absent=(key,name)=>{
   if(!confirm("不在にしますか？"))return;
   const t=Date.now();
   update(ref(db,"waitlist/"+key),{absentAt:t});
+  
   setTimeout(()=>{
-    deleteHistory.prepend(Object.assign(document.createElement("li"),{
-      textContent:`${new Date().toLocaleTimeString()}｜${name}様（不在）`
-    }));
-    remove(ref(db,"waitlist/"+key));
+    const itemRef = ref(db, "waitlist/" + key);
+    onValue(itemRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        // 履歴に保存
+        push(ref(db,"history/delete"),{
+          name,
+          data,
+          reason:"不在",
+          time:Date.now()
+        });
+        
+        remove(itemRef);
+      }
+    }, { onlyOnce: true });
   },15*60*1000);
 };
 
@@ -238,22 +311,31 @@ window.absent=(key,name)=>{
 window.del=(key,name)=>{
   if(!confirm("消去しますか？"))return;
   
-  // データを取得してから削除
   const itemRef = ref(db, "waitlist/" + key);
   onValue(itemRef, (snapshot) => {
     const data = snapshot.val();
     if (data) {
-      const li = document.createElement("li");
-      li.innerHTML = `${new Date().toLocaleTimeString()}｜${name}様 <button class="undo" onclick="undoDelete('${key}',${JSON.stringify(data).replace(/"/g,'&quot;')})">戻す</button>`;
-      deleteHistory.prepend(li);
+      // 履歴に保存
+      push(ref(db,"history/delete"),{
+        name,
+        data,
+        time:Date.now()
+      });
+      
       remove(itemRef);
     }
   }, { onlyOnce: true });
 };
 
-window.undoDelete=(key,data)=>{
+window.undoDelete=(historyKey,data)=>{
   if(!confirm("消去を取り消して待ち列に戻しますか？"))return;
-  set(ref(db,"waitlist/"+key),data);
+  
+  // 新しいキーで待ち列に追加
+  push(ref(db,"waitlist"),data);
+  
+  // 履歴から削除
+  remove(ref(db,"history/delete/"+historyKey));
+  
   alert("待ち列に戻しました");
 };
 
