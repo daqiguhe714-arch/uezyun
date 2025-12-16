@@ -249,31 +249,65 @@ body{
   transform:translateY(1px);
 }
 
-.result{
-  margin-top:32px;
-  padding:28px;
-  background:#fafafa;
-  border-radius:4px;
-  text-align:center;
-  font-size:15px;
+/* 成功モーダル */
+.modal-overlay{
   display:none;
-  animation:slideIn 0.4s ease;
-  border:1px solid #d0d0d0;
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:rgba(0,0,0,0.7);
+  z-index:1000;
+  animation:fadeIn 0.3s ease;
 }
-.result.show{
-  display:block;
+.modal-overlay.show{
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
-.result .name{
-  font-size:22px;
+.modal{
+  background:#fff;
+  border-radius:12px;
+  padding:48px 36px;
+  max-width:400px;
+  width:90%;
+  text-align:center;
+  animation:slideUp 0.4s ease;
+  box-shadow:0 10px 40px rgba(0,0,0,0.3);
+}
+.modal .checkmark{
+  font-size:72px;
+  margin-bottom:24px;
+  animation:scaleIn 0.5s ease 0.2s both;
+}
+.modal .title{
+  font-size:28px;
   font-weight:500;
   color:#2c2c2c;
-  margin-bottom:16px;
-  letter-spacing:1px;
+  margin-bottom:20px;
+  letter-spacing:2px;
   font-family:'Hiragino Mincho ProN','Yu Mincho',serif;
 }
-.result .message{
+.modal .message{
+  font-size:15px;
   color:#555;
   line-height:1.9;
+  margin-bottom:28px;
+}
+.modal .menu-link{
+  display:inline-block;
+  padding:14px 32px;
+  background:#2c2c2c;
+  color:#fff;
+  text-decoration:none;
+  border-radius:4px;
+  font-weight:500;
+  letter-spacing:2px;
+  transition:all 0.3s;
+}
+.modal .menu-link:hover{
+  background:#1a1a1a;
 }
 
 .warning-box{
@@ -297,12 +331,21 @@ body{
   font-size:14px;
 }
 
-@keyframes slideIn{
-  from{opacity:0;transform:translateY(15px);}
+@keyframes fadeIn{
+  from{opacity:0;}
+  to{opacity:1;}
+}
+
+@keyframes slideUp{
+  from{opacity:0;transform:translateY(30px);}
   to{opacity:1;transform:translateY(0);}
 }
 
-/* スクロールバーのカスタマイズ */
+@keyframes scaleIn{
+  from{opacity:0;transform:scale(0.5);}
+  to{opacity:1;transform:scale(1);}
+}
+
 ::-webkit-scrollbar{
   width:8px;
 }
@@ -323,6 +366,8 @@ body{
   .wait-time{padding:28px 20px;}
   .wait-time .time{font-size:32px;}
   .card{padding:28px 20px 36px;}
+  .modal{padding:40px 28px;}
+  .modal .title{font-size:24px;}
 }
 </style>
 </head>
@@ -395,7 +440,23 @@ body{
 
     <button class="submit-btn" id="submitBtn">受付する</button>
 
-    <div class="result" id="result"></div>
+    <div class="warning-box" id="warningBox" style="display:none;">
+      <div class="title">⚠️ 大人数のご予約について</div>
+      <div class="text">7名様以上のご予約は、お手数ですが直接スタッフまでお声がけください。ご協力をお願いいたします。</div>
+    </div>
+  </div>
+</div>
+
+<!-- 成功モーダル -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="checkmark">✓</div>
+    <div class="title" id="modalName"></div>
+    <div class="message">
+      受付が完了しました！<br>
+      順番が近づきましたらお呼びいたします。
+    </div>
+    <a href="https://daqiguhe714-arch.github.io/hizyunmenyu/" class="menu-link">メニューを見る</a>
   </div>
 </div>
 
@@ -408,19 +469,19 @@ const app = initializeApp({
 });
 const db = getDatabase(app);
 
-// DOM要素が読み込まれるまで待つ
 document.addEventListener('DOMContentLoaded', () => {
-  /* ===== DOM ===== */
   const nameInput = document.getElementById("name");
   const countInput = document.getElementById("count");
   const emailInput = document.getElementById("email");
   const notifyBtn = document.getElementById("notifyBtn");
   const emailArea = document.getElementById("emailArea");
-  const result = document.getElementById("result");
   const waitTime = document.getElementById("waitTime");
   const kidsSelect = document.getElementById("kids");
   const chairInput = document.getElementById("chair");
   const noteInput = document.getElementById("note");
+  const modalOverlay = document.getElementById("modalOverlay");
+  const modalName = document.getElementById("modalName");
+  const warningBox = document.getElementById("warningBox");
 
   /* ===== 待ち時間表示 ===== */
   const format = min => {
@@ -461,10 +522,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if(count>=7){
-      result.className="result show warning-box";
-      result.innerHTML=`
-        <div class="title">⚠️ 大人数のご予約について</div>
-        <div class="text">7名様以上のご予約は、お手数ですが直接スタッフまでお声がけください。ご協力をお願いいたします。</div>`;
+      warningBox.style.display='block';
+      warningBox.scrollIntoView({behavior:'smooth',block:'center'});
+      setTimeout(()=>{
+        warningBox.style.display='none';
+      },5000);
       return;
     }
 
@@ -483,10 +545,9 @@ document.addEventListener('DOMContentLoaded', () => {
       time:Date.now()
     });
 
-    result.className="result show";
-    result.innerHTML=`
-      <div class="name">${name} 様</div>
-      <div class="message">受付が完了しました！<br>順番が近づきましたらお呼びいたします。<br><br><a href="https://daqiguhe714-arch.github.io/hizyunmenyu/" style="color:#2c2c2c;text-decoration:underline;">メニューはこちら</a></div>`;
+    // モーダル表示
+    modalName.textContent = `${name} 様`;
+    modalOverlay.classList.add("show");
     
     // フォームをリセット
     nameInput.value='';
@@ -497,11 +558,18 @@ document.addEventListener('DOMContentLoaded', () => {
     noteInput.value='';
     if(useMail) toggleMail();
 
-    // 5秒後に結果を非表示
+    // 4秒後に自動で閉じる
     setTimeout(()=>{
-      result.classList.remove("show");
-    },5000);
+      modalOverlay.classList.remove("show");
+    },4000);
   };
+
+  // モーダルクリックで閉じる
+  modalOverlay.addEventListener("click", (e)=>{
+    if(e.target === modalOverlay){
+      modalOverlay.classList.remove("show");
+    }
+  });
 
   document.getElementById("submitBtn").addEventListener("click", register);
 });
