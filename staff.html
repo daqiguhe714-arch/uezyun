@@ -75,6 +75,14 @@ emailjs.init({ publicKey:"jRUkbLl4MWL20uTZR" });
 </div>
 
 <div class="section">
+  <h3>🔄 システム状態</h3>
+  <button id="toggleSystemBtn" onclick="toggleSystem()" style="width:100%;padding:12px;font-size:16px;font-weight:bold;margin-bottom:8px;">
+    読込中...
+  </button>
+  <div id="systemStatus" style="text-align:center;font-size:13px;color:#666;"></div>
+</div>
+
+<div class="section">
   <h3>⏰ 現在の待ち時間（分）</h3>
   <div style="display:flex;gap:6px;">
     <input id="waitMin" type="number" placeholder="最短(分)">
@@ -133,6 +141,45 @@ const mailHistory=document.getElementById("mailHistory");
 const waitMinInput=document.getElementById("waitMin");
 const waitMaxInput=document.getElementById("waitMax");
 const waitTimeStatus=document.getElementById("waitTimeStatus");
+const toggleSystemBtn=document.getElementById("toggleSystemBtn");
+const systemStatus=document.getElementById("systemStatus");
+
+let currentSystemState = false;
+
+// システム状態の監視
+onValue(ref(db,"status/isOpen"),snap=>{
+  currentSystemState = snap.val() || false;
+  updateSystemButton();
+});
+
+function updateSystemButton(){
+  if(currentSystemState){
+    toggleSystemBtn.textContent = "⏸ システムを停止する";
+    toggleSystemBtn.style.background = "#ff9800";
+    toggleSystemBtn.style.color = "#fff";
+    systemStatus.textContent = "✅ 受付中：お客様は受付できます";
+    systemStatus.style.color = "#4caf50";
+  } else {
+    toggleSystemBtn.textContent = "▶ システムを開始する";
+    toggleSystemBtn.style.background = "#4caf50";
+    toggleSystemBtn.style.color = "#fff";
+    systemStatus.textContent = "⏸ 停止中：お客様は受付できません";
+    systemStatus.style.color = "#999";
+  }
+}
+
+window.toggleSystem = ()=>{
+  const newState = !currentSystemState;
+  const msg = newState ? "システムを開始しますか？\nお客様が受付できるようになります。" : "システムを停止しますか？\nお客様は受付できなくなります。";
+  
+  if(!confirm(msg)) return;
+  
+  set(ref(db,"status/isOpen"), newState).then(()=>{
+    alert(newState ? "システムを開始しました" : "システムを停止しました");
+  }).catch(err=>{
+    alert("エラー: " + err.message);
+  });
+};
 
 // 待ち時間の現在値を読み込み
 onValue(ref(db,"status/waitTime"),snap=>{

@@ -249,7 +249,6 @@ body{
   transform:translateY(1px);
 }
 
-/* 成功モーダル */
 .modal-overlay{
   display:none;
   position:fixed;
@@ -331,6 +330,35 @@ body{
   font-size:14px;
 }
 
+.closed-message{
+  display:none;
+  text-align:center;
+  padding:60px 28px;
+  background:#f9f9f9;
+  border-radius:8px;
+  margin:40px 28px;
+}
+.closed-message.show{
+  display:block;
+}
+.closed-message .icon{
+  font-size:64px;
+  margin-bottom:24px;
+}
+.closed-message .title{
+  font-size:24px;
+  font-weight:500;
+  color:#2c2c2c;
+  margin-bottom:16px;
+  letter-spacing:1px;
+  font-family:'Hiragino Mincho ProN','Yu Mincho',serif;
+}
+.closed-message .text{
+  font-size:15px;
+  color:#555;
+  line-height:1.9;
+}
+
 @keyframes fadeIn{
   from{opacity:0;}
   to{opacity:1;}
@@ -384,7 +412,17 @@ body{
     <div class="time">確認中…</div>
   </div>
 
-  <div class="card">
+  <!-- 受付停止中のメッセージ -->
+  <div class="closed-message" id="closedMessage">
+    <div class="icon">🙇</div>
+    <div class="title">順番待ち受付停止中</div>
+    <div class="text">
+      ただいま順番待ちはございません。<br>
+      スタッフまでお声がけください。
+    </div>
+  </div>
+
+  <div class="card" id="formCard">
     <div class="form-group">
       <label>お名前（カタカナ）<span class="required">必須</span></label>
       <input type="text" id="name" placeholder="ヤマダ ジュン">
@@ -447,7 +485,6 @@ body{
   </div>
 </div>
 
-<!-- 成功モーダル -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <div class="checkmark">✓</div>
@@ -482,6 +519,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalOverlay = document.getElementById("modalOverlay");
   const modalName = document.getElementById("modalName");
   const warningBox = document.getElementById("warningBox");
+  const formCard = document.getElementById("formCard");
+  const closedMessage = document.getElementById("closedMessage");
+
+  /* ===== システム稼働状態の監視 ===== */
+  onValue(ref(db,"status/isOpen"), snap=>{
+    const isOpen = snap.val();
+    
+    if(isOpen){
+      // 受付可能
+      formCard.style.display = 'block';
+      closedMessage.classList.remove('show');
+    } else {
+      // 受付停止中
+      formCard.style.display = 'none';
+      closedMessage.classList.add('show');
+    }
+  });
 
   /* ===== 待ち時間表示 ===== */
   const format = min => {
@@ -545,11 +599,9 @@ document.addEventListener('DOMContentLoaded', () => {
       time:Date.now()
     });
 
-    // モーダル表示
     modalName.textContent = `${name} 様`;
     modalOverlay.classList.add("show");
     
-    // フォームをリセット
     nameInput.value='';
     countInput.value='';
     emailInput.value='';
@@ -558,13 +610,11 @@ document.addEventListener('DOMContentLoaded', () => {
     noteInput.value='';
     if(useMail) toggleMail();
 
-    // 4秒後に自動で閉じる
     setTimeout(()=>{
       modalOverlay.classList.remove("show");
     },4000);
   };
 
-  // モーダルクリックで閉じる
   modalOverlay.addEventListener("click", (e)=>{
     if(e.target === modalOverlay){
       modalOverlay.classList.remove("show");
