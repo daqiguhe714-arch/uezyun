@@ -48,6 +48,10 @@ body{
   padding:32px 24px;
   text-align:center;
   border-bottom:1px solid #e0e0e0;
+  display:none;
+}
+.wait-time.show{
+  display:block;
 }
 .wait-time .label{
   font-size:12px;
@@ -414,7 +418,7 @@ body{
 
   <!-- 受付停止中のメッセージ -->
   <div class="closed-message" id="closedMessage">
-    <div class="icon">🙇</div>
+    <div class="icon"></div>
     <div class="title">順番待ち受付停止中</div>
     <div class="text">
       ただいま順番待ちはございません。<br>
@@ -530,10 +534,12 @@ document.addEventListener('DOMContentLoaded', () => {
       // 受付可能
       formCard.style.display = 'block';
       closedMessage.classList.remove('show');
+      waitTime.classList.add('show');
     } else {
       // 受付停止中
       formCard.style.display = 'none';
       closedMessage.classList.add('show');
+      waitTime.classList.remove('show');
     }
   });
 

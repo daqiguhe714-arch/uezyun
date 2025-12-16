@@ -82,7 +82,7 @@ emailjs.init({ publicKey:"jRUkbLl4MWL20uTZR" });
   <div id="systemStatus" style="text-align:center;font-size:13px;color:#666;"></div>
 </div>
 
-<div class="section">
+<div class="section" id="waitTimeSection">
   <h3>⏰ 現在の待ち時間（分）</h3>
   <div style="display:flex;gap:6px;">
     <input id="waitMin" type="number" placeholder="最短(分)">
@@ -143,6 +143,7 @@ const waitMaxInput=document.getElementById("waitMax");
 const waitTimeStatus=document.getElementById("waitTimeStatus");
 const toggleSystemBtn=document.getElementById("toggleSystemBtn");
 const systemStatus=document.getElementById("systemStatus");
+const waitTimeSection=document.getElementById("waitTimeSection");
 
 let currentSystemState = false;
 
@@ -159,12 +160,14 @@ function updateSystemButton(){
     toggleSystemBtn.style.color = "#fff";
     systemStatus.textContent = "✅ 受付中：お客様は受付できます";
     systemStatus.style.color = "#4caf50";
+    waitTimeSection.classList.remove("hidden");
   } else {
     toggleSystemBtn.textContent = "▶ システムを開始する";
     toggleSystemBtn.style.background = "#4caf50";
     toggleSystemBtn.style.color = "#fff";
     systemStatus.textContent = "⏸ 停止中：お客様は受付できません";
     systemStatus.style.color = "#999";
+    waitTimeSection.classList.add("hidden");
   }
 }
 
