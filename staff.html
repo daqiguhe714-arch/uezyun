@@ -51,6 +51,60 @@ input,select{padding:8px;border-radius:8px;border:1px solid #ccc;width:100%;}
   border-radius:6px;
   font-size:14px;
 }
+
+.date-section{
+  background:#fff;
+  border-radius:12px;
+  padding:12px;
+  margin:12px 0;
+  border-left:4px solid #2196f3;
+}
+.date-header{
+  font-weight:bold;
+  font-size:16px;
+  color:#2196f3;
+  margin-bottom:12px;
+  padding-bottom:8px;
+  border-bottom:1px solid #e0e0e0;
+}
+.archive-box{
+  background:#f9f9f9;
+  padding:10px;
+  border-radius:8px;
+  margin-bottom:8px;
+}
+.archive-box h4{
+  font-size:14px;
+  color:#666;
+  margin-bottom:8px;
+}
+
+.collapsible{
+  cursor:pointer;
+  user-select:none;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:4px 0;
+}
+.collapsible:hover{
+  opacity:0.7;
+}
+.collapsible .arrow{
+  transition:transform 0.3s;
+  font-size:12px;
+}
+.collapsible.open .arrow{
+  transform:rotate(90deg);
+}
+.collapsible-content{
+  max-height:0;
+  overflow:hidden;
+  transition:max-height 0.3s ease;
+}
+.collapsible-content.open{
+  max-height:2000px;
+}
 </style>
 
 <script>
@@ -109,23 +163,58 @@ emailjs.init({ publicKey:"jRUkbLl4MWL20uTZR" });
 <div id="list"></div>
 
 <div class="section">
-<h3>📧 メール送信履歴</h3>
-<div id="mailHistory"></div>
+<div class="collapsible" onclick="toggleSection('mailHistory')">
+<span class="arrow">▶</span>
+<h3 style="margin:0;">📧 本日のメール送信履歴</h3>
+</div>
+<div class="collapsible-content" id="mailHistory-content">
+<div id="mailHistory" style="margin-top:12px;"></div>
+</div>
 </div>
 
 <div class="section">
-<h3>📢 呼び出し履歴</h3>
-<div id="callHistory"></div>
+<div class="collapsible" onclick="toggleSection('callHistory')">
+<span class="arrow">▶</span>
+<h3 style="margin:0;">📢 本日の呼び出し履歴</h3>
+</div>
+<div class="collapsible-content" id="callHistory-content">
+<div id="callHistory" style="margin-top:12px;"></div>
+</div>
 </div>
 
 <div class="section">
-<h3>🗑 消去履歴</h3>
-<div id="deleteHistory"></div>
+<div class="collapsible" onclick="toggleSection('deleteHistory')">
+<span class="arrow">▶</span>
+<h3 style="margin:0;">🗑 本日の消去履歴</h3>
+</div>
+<div class="collapsible-content" id="deleteHistory-content">
+<div id="deleteHistory" style="margin-top:12px;"></div>
+</div>
+</div>
+
+<div class="section">
+<div class="collapsible" onclick="toggleSection('cancelHistory')">
+<span class="arrow">▶</span>
+<h3 style="margin:0;">❌ 本日のキャンセル履歴（不在30分後）</h3>
+</div>
+<div class="collapsible-content" id="cancelHistory-content">
+<div id="cancelHistory" style="margin-top:12px;"></div>
+</div>
+</div>
+
+<div class="section">
+<div class="collapsible" onclick="toggleSection('archiveHistory')">
+<span class="arrow">▶</span>
+<h3 style="margin:0;">📦 過去の履歴アーカイブ</h3>
+</div>
+<div class="collapsible-content" id="archiveHistory-content">
+<div id="archiveHistory" style="margin-top:12px;"></div>
+</div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, onValue, push, remove, update, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, onValue, push, remove, update, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const app=initializeApp({
   databaseURL:"https://zyunule-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -137,7 +226,9 @@ const groupCount=document.getElementById("groupCount");
 const peopleCount=document.getElementById("peopleCount");
 const callHistory=document.getElementById("callHistory");
 const deleteHistory=document.getElementById("deleteHistory");
+const cancelHistory=document.getElementById("cancelHistory");
 const mailHistory=document.getElementById("mailHistory");
+const archiveHistory=document.getElementById("archiveHistory");
 const waitMinInput=document.getElementById("waitMin");
 const waitMaxInput=document.getElementById("waitMax");
 const waitTimeStatus=document.getElementById("waitTimeStatus");
@@ -146,6 +237,148 @@ const systemStatus=document.getElementById("systemStatus");
 const waitTimeSection=document.getElementById("waitTimeSection");
 
 let currentSystemState = false;
+
+/* ===== プルダウントグル ===== */
+window.toggleSection = (id) => {
+  const content = document.getElementById(id + '-content');
+  const parent = content.previousElementSibling;
+  
+  content.classList.toggle('open');
+  parent.classList.toggle('open');
+};
+
+/* ===== 日付取得関数 ===== */
+const getDateString = (timestamp) => {
+  const d = new Date(timestamp || Date.now());
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+
+const formatDateJP = (dateStr) => {
+  const [y,m,d] = dateStr.split('-');
+  return `${y}年${m}月${d}日`;
+};
+
+/* ===== 0時の自動アーカイブ処理 ===== */
+const checkAndArchive = async () => {
+  const now = new Date();
+  const today = getDateString();
+  
+  // 最後にアーカイブした日付を確認
+  const lastArchiveSnap = await get(ref(db, "status/lastArchive"));
+  const lastArchive = lastArchiveSnap.val();
+  
+  // 日付が変わっていたらアーカイブ実行
+  if(lastArchive !== today){
+    await archiveData(lastArchive || today);
+    await set(ref(db, "status/lastArchive"), today);
+  }
+};
+
+const archiveData = async (dateStr) => {
+  try {
+    // 各履歴を取得
+    const mailSnap = await get(ref(db, "history/mail"));
+    const callSnap = await get(ref(db, "history/call"));
+    const deleteSnap = await get(ref(db, "history/delete"));
+    const cancelSnap = await get(ref(db, "history/cancel"));
+    
+    const mailData = mailSnap.val();
+    const callData = callSnap.val();
+    const deleteData = deleteSnap.val();
+    const cancelData = cancelSnap.val();
+    
+    // アーカイブに保存
+    if(mailData || callData || deleteData || cancelData){
+      await set(ref(db, `archive/${dateStr}`), {
+        mail: mailData || {},
+        call: callData || {},
+        delete: deleteData || {},
+        cancel: cancelData || {},
+        archivedAt: Date.now()
+      });
+      
+      // 現在の履歴をクリア
+      await set(ref(db, "history/mail"), null);
+      await set(ref(db, "history/call"), null);
+      await set(ref(db, "history/delete"), null);
+      await set(ref(db, "history/cancel"), null);
+      
+      console.log(`${dateStr}の履歴をアーカイブしました`);
+    }
+  } catch(err) {
+    console.error("アーカイブエラー:", err);
+  }
+};
+
+// 起動時とページ表示時にチェック
+checkAndArchive();
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) checkAndArchive();
+});
+
+// 定期的にチェック（1分ごと）
+setInterval(checkAndArchive, 60000);
+
+/* ===== アーカイブ履歴の表示 ===== */
+onValue(ref(db, "archive"), snap => {
+  archiveHistory.innerHTML = "";
+  const data = snap.val();
+  
+  if(!data){
+    archiveHistory.innerHTML = '<div style="color:#999;text-align:center;padding:20px;">過去の履歴はありません</div>';
+    return;
+  }
+  
+  // 日付順（新しい順）にソート
+  const dates = Object.keys(data).sort().reverse();
+  
+  dates.forEach(dateStr => {
+    const dayData = data[dateStr];
+    const dateDiv = document.createElement("div");
+    dateDiv.className = "date-section";
+    
+    let content = `<div class="date-header">📅 ${formatDateJP(dateStr)}</div>`;
+    
+    // メール履歴
+    if(dayData.mail && Object.keys(dayData.mail).length > 0){
+      content += `<div class="archive-box"><h4>📧 メール送信 (${Object.keys(dayData.mail).length}件)</h4>`;
+      Object.values(dayData.mail).slice(0,5).forEach(v => {
+        content += `<div class="history-item">${new Date(v.time).toLocaleTimeString()}｜${v.name}様｜${v.sender}</div>`;
+      });
+      content += `</div>`;
+    }
+    
+    // 呼び出し履歴
+    if(dayData.call && Object.keys(dayData.call).length > 0){
+      content += `<div class="archive-box"><h4>📢 呼び出し (${Object.keys(dayData.call).length}件)</h4>`;
+      Object.values(dayData.call).slice(0,5).forEach(v => {
+        content += `<div class="history-item">${new Date(v.time).toLocaleTimeString()}｜${v.name}様</div>`;
+      });
+      content += `</div>`;
+    }
+    
+    // 消去履歴
+    if(dayData.delete && Object.keys(dayData.delete).length > 0){
+      content += `<div class="archive-box"><h4>🗑 消去 (${Object.keys(dayData.delete).length}件)</h4>`;
+      Object.values(dayData.delete).slice(0,5).forEach(v => {
+        content += `<div class="history-item">${new Date(v.time).toLocaleTimeString()}｜${v.name}様</div>`;
+      });
+      content += `</div>`;
+    }
+    
+    // キャンセル履歴
+    if(dayData.cancel && Object.keys(dayData.cancel).length > 0){
+      content += `<div class="archive-box"><h4>❌ キャンセル (${Object.keys(dayData.cancel).length}件)</h4>`;
+      Object.values(dayData.cancel).slice(0,5).forEach(v => {
+        content += `<div class="history-item">${new Date(v.time).toLocaleTimeString()}｜${v.name}様（不在30分後自動キャンセル）</div>`;
+      });
+      content += `</div>`;
+    }
+    
+    dateDiv.innerHTML = content;
+    archiveHistory.appendChild(dateDiv);
+  });
+});
 
 // システム状態の監視
 onValue(ref(db,"status/isOpen"),snap=>{
@@ -198,7 +431,10 @@ onValue(ref(db,"status/waitTime"),snap=>{
 onValue(ref(db,"history/mail"),snap=>{
   mailHistory.innerHTML="";
   const d=snap.val();
-  if(!d)return;
+  if(!d){
+    mailHistory.innerHTML='<div style="color:#999;text-align:center;">履歴なし</div>';
+    return;
+  }
   
   Object.entries(d).sort((a,b)=>b[1].time-a[1].time).slice(0,20).forEach(([key,v])=>{
     const div=document.createElement("div");
@@ -211,7 +447,10 @@ onValue(ref(db,"history/mail"),snap=>{
 onValue(ref(db,"history/call"),snap=>{
   callHistory.innerHTML="";
   const d=snap.val();
-  if(!d)return;
+  if(!d){
+    callHistory.innerHTML='<div style="color:#999;text-align:center;">履歴なし</div>';
+    return;
+  }
   
   Object.entries(d).sort((a,b)=>b[1].time-a[1].time).slice(0,20).forEach(([key,v])=>{
     const div=document.createElement("div");
@@ -224,13 +463,33 @@ onValue(ref(db,"history/call"),snap=>{
 onValue(ref(db,"history/delete"),snap=>{
   deleteHistory.innerHTML="";
   const d=snap.val();
-  if(!d)return;
+  if(!d){
+    deleteHistory.innerHTML='<div style="color:#999;text-align:center;">履歴なし</div>';
+    return;
+  }
   
   Object.entries(d).sort((a,b)=>b[1].time-a[1].time).slice(0,20).forEach(([key,v])=>{
     const div=document.createElement("div");
     div.className="history-item";
     div.innerHTML=`${new Date(v.time).toLocaleTimeString()}｜${v.name}様 <button class="undo" onclick="undoDelete('${key}',${JSON.stringify(v.data).replace(/"/g,'&quot;')})">戻す</button>`;
     deleteHistory.appendChild(div);
+  });
+});
+
+// キャンセル履歴の読み込み
+onValue(ref(db,"history/cancel"),snap=>{
+  cancelHistory.innerHTML="";
+  const d=snap.val();
+  if(!d){
+    cancelHistory.innerHTML='<div style="color:#999;text-align:center;">履歴なし</div>';
+    return;
+  }
+  
+  Object.entries(d).sort((a,b)=>b[1].time-a[1].time).slice(0,20).forEach(([key,v])=>{
+    const div=document.createElement("div");
+    div.className="history-item";
+    div.innerHTML=`${new Date(v.time).toLocaleTimeString()}｜${v.name}様（不在30分後自動キャンセル） <button class="undo" onclick="undoCancel('${key}',${JSON.stringify(v.data).replace(/"/g,'&quot;')})">戻す</button>`;
+    cancelHistory.appendChild(div);
   });
 });
 
@@ -282,7 +541,7 @@ window.sendMail=(key,name,email)=>{
   const sender=prompt("送信者名を入力してください");
   if(!sender) return;
 
-  emailjs.send("service_a01ep2i","template_mgk6u3t",{
+  emailjs.send("service_qg79zyi","template_mgk6u3t",{
     to_name:name,
     to_email:email,
     sender
@@ -297,6 +556,8 @@ window.sendMail=(key,name,email)=>{
     });
     
     alert("メールを送信しました");
+  }).catch(err=>{
+    alert("メール送信エラー: " + err.text);
   });
 };
 
@@ -334,27 +595,29 @@ window.undoCall=(historyKey,data)=>{
 
 /* ===== 不在 ===== */
 window.absent=(key,name)=>{
-  if(!confirm("不在にしますか？"))return;
+  if(!confirm("不在にしますか？\n30分後に自動的にキャンセルされます。"))return;
   const t=Date.now();
   update(ref(db,"waitlist/"+key),{absentAt:t});
   
+  // 30分後に自動キャンセル
   setTimeout(()=>{
     const itemRef = ref(db, "waitlist/" + key);
     onValue(itemRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) {
-        // 履歴に保存
-        push(ref(db,"history/delete"),{
+      if (data && data.absentAt === t) { // まだ不在状態か確認
+        // キャンセル履歴に保存
+        push(ref(db,"history/cancel"),{
           name,
           data,
-          reason:"不在",
+          reason:"不在30分後自動キャンセル",
           time:Date.now()
         });
         
         remove(itemRef);
+        console.log(`${name}様を自動キャンセルしました`);
       }
     }, { onlyOnce: true });
-  },15*60*1000);
+  },30*60*1000); // 30分
 };
 
 /* ===== 消去 ===== */
@@ -385,6 +648,20 @@ window.undoDelete=(historyKey,data)=>{
   
   // 履歴から削除
   remove(ref(db,"history/delete/"+historyKey));
+  
+  alert("待ち列に戻しました");
+};
+
+window.undoCancel=(historyKey,data)=>{
+  if(!confirm("キャンセルを取り消して待ち列に戻しますか？"))return;
+  
+  // 新しいキーで待ち列に追加（不在状態をクリア）
+  const cleanData = {...data};
+  delete cleanData.absentAt;
+  push(ref(db,"waitlist"),cleanData);
+  
+  // 履歴から削除
+  remove(ref(db,"history/cancel/"+historyKey));
   
   alert("待ち列に戻しました");
 };
