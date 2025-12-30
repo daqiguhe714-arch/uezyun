@@ -21,6 +21,7 @@ button{border:none;padding:8px 12px;border-radius:8px;cursor:pointer;}
 .done{background:#999;color:#fff;}
 .mail{background:#2196f3;color:#fff;}
 .undo{background:#673ab7;color:#fff;}
+.move{background:#607d8b;color:#fff;padding:6px 10px;}
 
 .small{font-size:13px;color:#555;margin-top:4px;}
 input,select{padding:8px;border-radius:8px;border:1px solid #ccc;width:100%;}
@@ -493,6 +494,9 @@ onValue(ref(db,"history/cancel"),snap=>{
   });
 });
 
+let waitlistData = [];
+let isInitializing = false;
+
 onValue(ref(db,"waitlist"),snap=>{
   list.innerHTML="";
   let g=0,p=0;
@@ -500,10 +504,30 @@ onValue(ref(db,"waitlist"),snap=>{
   if(!d){
     groupCount.textContent=0;
     peopleCount.textContent=0;
+    waitlistData = [];
     return;
   }
 
-  Object.entries(d).forEach(([key,v],i)=>{
+  // データを配列に変換
+  waitlistData = Object.entries(d).map(([key,v])=>({key,...v}));
+  
+  // order値がないデータがある場合は初期化
+  const hasNoOrder = waitlistData.some(v => v.order === undefined || v.order === null);
+  if(hasNoOrder && !isInitializing){
+    isInitializing = true;
+    // time順にソートしてorder値を付与
+    waitlistData.sort((a,b)=>(a.time||0)-(b.time||0));
+    waitlistData.forEach((v,i)=>{
+      update(ref(db,"waitlist/"+v.key),{order:i});
+    });
+    return;
+  }
+  isInitializing = false;
+  
+  // order順にソート
+  waitlistData.sort((a,b)=>(a.order||0)-(b.order||0));
+
+  waitlistData.forEach((v,i)=>{
     g++; p+=Number(v.count||0);
     const div=document.createElement("div");
     div.className="box";
@@ -524,10 +548,12 @@ onValue(ref(db,"waitlist"),snap=>{
       ${kidsInfo}
       <div class="small">備考：${v.note||"なし"}</div>
       <div class="row">
-        ${v.email&&!v.mailSent?`<button class="mail" onclick="sendMail('${key}','${v.name}','${v.email}')">メール</button>`:""}
-        <button class="call" onclick="call('${key}','${v.name}')">呼び出し</button>
-        <button class="absent" onclick="absent('${key}','${v.name}')">不在</button>
-        <button class="done" onclick="del('${key}','${v.name}')">消去</button>
+        ${i>0?`<button class="move" onclick="moveUp(${i})">↑</button>`:""}
+        ${i<waitlistData.length-1?`<button class="move" onclick="moveDown(${i})">↓</button>`:""}
+        ${v.email&&!v.mailSent?`<button class="mail" onclick="sendMail('${v.key}','${v.name}','${v.email}')">メール</button>`:""}
+        <button class="call" onclick="call('${v.key}','${v.name}')">呼び出し</button>
+        <button class="absent" onclick="absent('${v.key}','${v.name}')">不在</button>
+        <button class="done" onclick="del('${v.key}','${v.name}')">消去</button>
       </div>`;
     list.appendChild(div);
   });
@@ -535,6 +561,27 @@ onValue(ref(db,"waitlist"),snap=>{
   groupCount.textContent=g;
   peopleCount.textContent=p;
 });
+
+/* ===== 順番移動 ===== */
+window.moveUp=(index)=>{
+  if(index<=0) return;
+  
+  const item1 = waitlistData[index];
+  const item2 = waitlistData[index-1];
+  
+  update(ref(db,"waitlist/"+item1.key),{order:index-1});
+  update(ref(db,"waitlist/"+item2.key),{order:index});
+};
+
+window.moveDown=(index)=>{
+  if(index>=waitlistData.length-1) return;
+  
+  const item1 = waitlistData[index];
+  const item2 = waitlistData[index+1];
+  
+  update(ref(db,"waitlist/"+item1.key),{order:index+1});
+  update(ref(db,"waitlist/"+item2.key),{order:index});
+};
 
 /* ===== メール ===== */
 window.sendMail=(key,name,email)=>{
@@ -674,11 +721,16 @@ window.staffRegister=()=>{
     alert("必須項目を入力してください");
     return;
   }
+  
+  // 現在の最大order値を取得
+  const maxOrder = waitlistData.length > 0 ? Math.max(...waitlistData.map(v=>v.order||0)) : -1;
+  
   const data = {
     name:s_name.value,
     count:s_count.value,
     note:s_note.value,
-    time:Date.now()
+    time:Date.now(),
+    order:maxOrder+1
   };
   if(s_email.value) data.email = s_email.value;
   
